@@ -1,13 +1,14 @@
+# -*- coding:utf-8 -*-
 import pandas as pd 
 import numpy as np 
-import cv2 # Used to manipulated the images 
+import cv2
 seed = 1234
-np.random.seed(seed) # The seed I used - pick your own or comment out for a random seed. A constant seed allows for better comparisons though
+np.random.seed(seed) 
 
 # Kfold
 from sklearn.model_selection import StratifiedKFold
 
-# Import Keras 
+
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Flatten, Activation
 from keras.layers import Conv2D, MaxPooling2D
@@ -17,17 +18,17 @@ from keras.optimizers import Adam
 
 def get_scaled_imgs(df):
     """
-    basic function for reshaping and rescaling data as images
+    将数据集加工成图像
     """
     imgs = []
     
     for i, row in df.iterrows():
-        #make 75x75 image
+        #生成75*75图像
         band_1 = np.array(row['band_1']).reshape(75, 75)
         band_2 = np.array(row['band_2']).reshape(75, 75)
-        band_3 = band_1 + band_2 # plus since log(x*y) = log(x) + log(y)
+        band_3 = band_1 + band_2 
         
-        # Rescale
+        # 0均值化
         a = (band_1 - band_1.mean()) / (band_1.max() - band_1.min())
         b = (band_2 - band_2.mean()) / (band_2.max() - band_2.min())
         c = (band_3 - band_3.mean()) / (band_3.max() - band_3.min())
@@ -37,7 +38,7 @@ def get_scaled_imgs(df):
     return np.array(imgs)    
 def get_more_images(imgs):
     """
-    augmentation for more data
+    数据增强
     """    
 
 
@@ -69,52 +70,52 @@ def get_more_images(imgs):
 def get_model():
     
     """
-    Keras Sequential model
+    Keras Sequential model：传递layers list构建模型
 
     """
     
     model=Sequential()
     
-    # Conv block 1
+    # Conv1
     model.add(Conv2D(64, kernel_size=(3, 3),activation='relu', input_shape=(75, 75, 3)))
     model.add(Conv2D(64, kernel_size=(3, 3), activation='relu' ))
     model.add(Conv2D(64, kernel_size=(3, 3), activation='relu' ))
     model.add(MaxPooling2D(pool_size=(3, 3), strides=(2, 2)))
    
-    # Conv block 2
+    # Conv 2
     model.add(Conv2D(128, kernel_size=(3, 3), activation='relu' ))
     model.add(Conv2D(128, kernel_size=(3, 3), activation='relu' ))
     model.add(Conv2D(128, kernel_size=(3, 3), activation='relu' ))
     model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
    
-    # Conv block 3
+    # Conv 3
     model.add(Conv2D(128, kernel_size=(3, 3), activation='relu'))
     model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
    
-    #Conv block 4
+    #Conv 4
     model.add(Conv2D(256, kernel_size=(3, 3), activation='relu'))
     model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
    
-    # Flatten before dense
+    # 在全连接前拉直
     model.add(Flatten())
 
-    #Dense 1
+    #全连接 1
     model.add(Dense(1024, activation='relu'))
     model.add(Dropout(0.4))
 
-    #Dense 2
+    #全连接 2
     model.add(Dense(512, activation='relu'))
     model.add(Dropout(0.2))
 
-    # Output 
+    # 输出层 
     model.add(Dense(1, activation="sigmoid"))
 
     optimizer = Adam(lr=0.0001, decay=0.0)
     model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=['accuracy'])
     
     return model
-# Training Data
-df_train = pd.read_json('/home/gx/meng/iceberg/train.json') # this is a dataframe
+# 读取训练数据
+df_train = pd.read_json('/home/gx/meng/iceberg/train.json') 
 
 
 Xtrain = get_scaled_imgs(df_train)
@@ -128,7 +129,7 @@ Xtrain = Xtrain[idx_tr[0],...]
 Xtr_more = get_more_images(Xtrain) 
 Ytr_more = np.concatenate((Ytrain,Ytrain,Ytrain))
 
-# K fold CV training
+# K fold
 kfold = StratifiedKFold(n_splits=10, shuffle=True, random_state=seed)
 for fold_n, (train, test) in enumerate(kfold.split(Xtr_more, Ytr_more)):
     print("FOLD nr: ", fold_n)
@@ -139,7 +140,7 @@ for fold_n, (train, test) in enumerate(kfold.split(Xtr_more, Ytr_more)):
     mcp_save = ModelCheckpoint(MODEL_FILE, save_best_only=True, monitor='val_loss', mode='min')
     reduce_lr_loss = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=15, verbose=1, epsilon=1e-4, mode='min')
 
-    # set the epochs to 30 before training on your GPU
+    
     model.fit(Xtr_more[train], Ytr_more[train],
         batch_size=batch_size,
         epochs=30,
